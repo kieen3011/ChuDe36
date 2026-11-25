@@ -4,6 +4,14 @@
 
 TV1 sở hữu `sensor.py`, `monitoring_manager.py`, `main.py`, phần cấu hình cảm biến trong `config.py`, test tương ứng và tài liệu này. TV1 không triển khai SimulationEngine, AlertSystem, StatisticsTracker, Display, threshold hoặc Random Walk.
 
+### Quyết định kỹ thuật
+
+- Chỉ dùng Python Standard Library và `unittest`, không thêm dependency ngoài.
+- Tách `Sensor`, `MonitoringManager` và orchestrator theo đúng trách nhiệm của từng module.
+- `Sensor` kiểm tra toàn bộ dữ liệu trước khi thay measurement để không làm mất giá trị cũ khi validation thất bại.
+- `MonitoringManager` dùng dictionary để lookup trung bình O(1) và giữ thứ tự đăng ký khi tạo snapshot.
+- `main.py` nhận module TV2–TV5 qua tham số, nhờ đó không triển khai thay hoặc phụ thuộc vào class cụ thể của thành viên khác.
+
 ## 2. Class diagram
 
 ```mermaid
@@ -184,6 +192,8 @@ Chạy:
 ```powershell
 python -m unittest discover -s tests -v
 ```
+
+Kết quả kiểm thử hồi quy ngày 25/11/2026: **35 test chạy, 35 PASS, 0 FAIL, 0 SKIP**.
 
 Test bao phủ Sensor, Manager và orchestrator. Orchestrator hiện được kiểm tra bằng test double cho TV2–TV5. Real integration chưa thể xác minh vì repository chưa có implementation của bốn module đó.
 
