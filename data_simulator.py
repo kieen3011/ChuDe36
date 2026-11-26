@@ -197,7 +197,11 @@ class DataSimulator:
 
 
 if __name__ == "__main__":
-    sim = DataSimulator(mssv="079207050455")  
+    import sys
+
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
+    sim = DataSimulator(mssv="CHUDE36-DEMO")
 
     print("--- 1. TỰ THÍCH NGHI VỚI KHU VỰC MỚI CHƯA TỪNG KHAI BÁO ---")
     for i in range(1, 5):

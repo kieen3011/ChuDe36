@@ -6,6 +6,8 @@ Chủ đề 36: Mô phỏng cảm biến nhiệt độ/độ ẩm & cảnh báo 
 
 from datetime import datetime
 from enum import Enum
+import copy
+import math
 from typing import Dict, Any, Optional
 
 
@@ -40,7 +42,7 @@ class OutOfRangeDataError(SensorError):
 # 3. CẤU HÌNH BỘ NGƯỠNG AN TOÀN CHO 3 KHU VỰC KHO NÔNG SẢN
 # ==============================================================================
 DEFAULT_THRESHOLDS: Dict[str, Dict[str, Any]] = {
-    "Khu A": {
+    "A": {
         "name": "Kho lạnh trái cây",
         "temp_min": 2.0,
         "temp_max": 8.0,
@@ -50,23 +52,25 @@ DEFAULT_THRESHOLDS: Dict[str, Dict[str, Any]] = {
         "temp_critical_delta": 3.0,   # < -1°C hoặc > 11°C -> Nghiêm trọng
         "hum_critical_delta": 10.0,   # < 75% hoặc > 100% -> Nghiêm trọng
     },
-    "Khu B": {
+    "B": {
         "name": "Kho hạt khô",
         "temp_min": 18.0,
         "temp_max": 25.0,
-        "hum_min": 0.0,
-        "hum_max": 60.0,              # Yêu cầu: ẩm < 60%
-        "temp_critical_delta": 5.0,   # < 13°C hoặc > 30°C -> Nghiêm trọng
-        "hum_critical_delta": 15.0,   # > 75% -> Nghiêm trọng
+        "hum_min": None,
+        "hum_max": 60.0,
+        "hum_max_inclusive": False,
+        "temp_critical_delta": 3.0,
+        "hum_critical_delta": 10.0,
     },
-    "Khu C": {
+    "C": {
         "name": "Phòng tủ điện / Máy chủ",
-        "temp_min": 0.0,
-        "temp_max": 30.0,             # Yêu cầu: nhiệt độ < 30°C
+        "temp_min": None,
+        "temp_max": 30.0,
+        "temp_max_inclusive": False,
         "hum_min": 40.0,
         "hum_max": 60.0,
-        "temp_critical_delta": 5.0,   # > 35°C -> Nghiêm trọng
-        "hum_critical_delta": 15.0,   # < 25% hoặc > 75% -> Nghiêm trọng
+        "temp_critical_delta": 3.0,
+        "hum_critical_delta": 10.0,
     },
 }
 
@@ -87,7 +91,8 @@ class AlertSystem:
     PHYSICAL_HUM_MAX = 100.0
 
     def __init__(self, thresholds: Optional[Dict[str, Dict[str, Any]]] = None):
-        self.thresholds = thresholds if thresholds is not None else DEFAULT_THRESHOLDS
+        source = DEFAULT_THRESHOLDS if thresholds is None else thresholds
+        self.thresholds = copy.deepcopy(source)
 
     def validate_reading(self, temperature: Any, humidity: Any) -> None:
         """
@@ -101,39 +106,107 @@ class AlertSystem:
             )
 
         # 2. Kiểm tra sai kiểu dữ liệu (không phải số)
-        if not isinstance(temperature, (int, float)) or not isinstance(humidity, (int, float)):
+        if (
+            isinstance(temperature, bool)
+            or isinstance(humidity, bool)
+            or not isinstance(temperature, (int, float))
+            or not isinstance(humidity, (int, float))
+        ):
             raise OutOfRangeDataError(
                 f"Dữ liệu sai định dạng: temp={temperature!r}, hum={humidity!r}."
             )
 
         # 3. Kiểm tra dữ liệu nhiễu phi vật lý (vd: -999°C, độ ẩm âm hoặc > 100%)
-        if not (self.PHYSICAL_TEMP_MIN <= temperature <= self.PHYSICAL_TEMP_MAX):
+        if not math.isfinite(temperature) or not (
+            self.PHYSICAL_TEMP_MIN <= temperature <= self.PHYSICAL_TEMP_MAX
+        ):
             raise OutOfRangeDataError(
                 f"Nhiệt độ nhiễu ngoài phạm vi vật lý ({temperature}°C)."
             )
 
-        if not (self.PHYSICAL_HUM_MIN <= humidity <= self.PHYSICAL_HUM_MAX):
+        if not math.isfinite(humidity) or not (
+            self.PHYSICAL_HUM_MIN <= humidity <= self.PHYSICAL_HUM_MAX
+        ):
             raise OutOfRangeDataError(
                 f"Độ ẩm nhiễu ngoài phạm vi vật lý ({humidity}%)."
             )
 
     def _classify_metric(
-        self, value: float, min_val: float, max_val: float, critical_delta: float, unit: str, label: str
+        self,
+        value: float,
+        min_val: Optional[float],
+        max_val: Optional[float],
+        critical_delta: float,
+        unit: str,
+        label: str,
+        min_inclusive: bool = True,
+        max_inclusive: bool = True,
     ):
         """Hàm nội bộ đánh giá 1 chỉ số (nhiệt độ hoặc độ ẩm)."""
-        if value < min_val:
+        if min_val is not None and (
+            value < min_val or (value == min_val and not min_inclusive)
+        ):
             diff = min_val - value
             level = AlertLevel.CRITICAL if diff >= critical_delta else AlertLevel.WARNING
             msg = f"{label} thấp ({value}{unit} < {min_val}{unit}, lệch {diff:.1f}{unit})"
             return level, msg
 
-        if value > max_val:
+        if max_val is not None and (
+            value > max_val or (value == max_val and not max_inclusive)
+        ):
             diff = value - max_val
             level = AlertLevel.CRITICAL if diff >= critical_delta else AlertLevel.WARNING
             msg = f"{label} cao ({value}{unit} > {max_val}{unit}, lệch {diff:.1f}{unit})"
             return level, msg
 
         return AlertLevel.NORMAL, None
+
+    @staticmethod
+    def _normalize_location(location: str) -> str:
+        aliases = {"Khu A": "A", "Khu B": "B", "Khu C": "C"}
+        return aliases.get(location, location)
+
+    def evaluate_metrics(
+        self, location: str, temperature: Any, humidity: Any
+    ) -> tuple[AlertLevel, list[str]]:
+        """Tra muc cao nhat va danh sach metric vi pham co cau truc."""
+        location_id = self._normalize_location(location)
+        if location_id not in self.thresholds:
+            raise KeyError(f"Khu vực '{location}' chưa được cấu hình ngưỡng.")
+        self.validate_reading(temperature, humidity)
+        cfg = self.thresholds[location_id]
+        temperature_level, _ = self._classify_metric(
+            temperature,
+            cfg.get("temp_min"),
+            cfg.get("temp_max"),
+            cfg["temp_critical_delta"],
+            "°C",
+            "Nhiệt độ",
+            cfg.get("temp_min_inclusive", True),
+            cfg.get("temp_max_inclusive", True),
+        )
+        humidity_level, _ = self._classify_metric(
+            humidity,
+            cfg.get("hum_min"),
+            cfg.get("hum_max"),
+            cfg["hum_critical_delta"],
+            "%",
+            "Độ ẩm",
+            cfg.get("hum_min_inclusive", True),
+            cfg.get("hum_max_inclusive", True),
+        )
+        metrics = []
+        if temperature_level != AlertLevel.NORMAL:
+            metrics.append("temperature")
+        if humidity_level != AlertLevel.NORMAL:
+            metrics.append("humidity")
+        priority = {AlertLevel.NORMAL: 0, AlertLevel.WARNING: 1, AlertLevel.CRITICAL: 2}
+        final_level = (
+            temperature_level
+            if priority[temperature_level] >= priority[humidity_level]
+            else humidity_level
+        )
+        return final_level, metrics
 
     def evaluate(
         self,
@@ -151,26 +224,41 @@ class AlertSystem:
 
         try:
             # Bước 1: Kiểm tra khu vực có trong cấu hình hay không
-            if location not in self.thresholds:
+            location_id = self._normalize_location(location)
+            if location_id not in self.thresholds:
                 raise KeyError(f"Khu vực '{location}' chưa được cấu hình ngưỡng.")
 
             # Bước 2: Kiểm tra hợp lệ dữ liệu (có thể ném SensorDisconnectError / OutOfRangeDataError)
             self.validate_reading(temperature, humidity)
 
-            cfg = self.thresholds[location]
+            cfg = self.thresholds[location_id]
             reasons = []
             final_level = AlertLevel.NORMAL
 
             # Bước 3: Đánh giá Nhiệt độ
             t_level, t_msg = self._classify_metric(
-                temperature, cfg["temp_min"], cfg["temp_max"], cfg["temp_critical_delta"], "°C", "Nhiệt độ"
+                temperature,
+                cfg.get("temp_min"),
+                cfg.get("temp_max"),
+                cfg["temp_critical_delta"],
+                "°C",
+                "Nhiệt độ",
+                cfg.get("temp_min_inclusive", True),
+                cfg.get("temp_max_inclusive", True),
             )
             if t_msg:
                 reasons.append(t_msg)
 
             # Bước 4: Đánh giá Độ ẩm
             h_level, h_msg = self._classify_metric(
-                humidity, cfg["hum_min"], cfg["hum_max"], cfg["hum_critical_delta"], "%", "Độ ẩm"
+                humidity,
+                cfg.get("hum_min"),
+                cfg.get("hum_max"),
+                cfg["hum_critical_delta"],
+                "%",
+                "Độ ẩm",
+                cfg.get("hum_min_inclusive", True),
+                cfg.get("hum_max_inclusive", True),
             )
             if h_msg:
                 reasons.append(h_msg)
@@ -182,7 +270,7 @@ class AlertSystem:
             return {
                 "timestamp": ts,
                 "sensor_id": sensor_id,
-                "location": location,
+                "location": location_id,
                 "location_name": cfg["name"],
                 "temperature": temperature,
                 "humidity": humidity,
@@ -197,7 +285,7 @@ class AlertSystem:
                 "timestamp": ts,
                 "sensor_id": sensor_id,
                 "location": location,
-                "location_name": self.thresholds.get(location, {}).get("name", "Không xác định"),
+                "location_name": self.thresholds.get(self._normalize_location(location), {}).get("name", "Không xác định"),
                 "temperature": temperature,
                 "humidity": humidity,
                 "status": "ERROR",
@@ -211,7 +299,7 @@ class AlertSystem:
                 "timestamp": ts,
                 "sensor_id": sensor_id,
                 "location": location,
-                "location_name": self.thresholds.get(location, {}).get("name", "Không xác định"),
+                "location_name": self.thresholds.get(self._normalize_location(location), {}).get("name", "Không xác định"),
                 "temperature": temperature,
                 "humidity": humidity,
                 "status": "ERROR",
@@ -225,7 +313,7 @@ class AlertSystem:
                 "timestamp": ts,
                 "sensor_id": sensor_id,
                 "location": location,
-                "location_name": self.thresholds.get(location, {}).get("name", "Không xác định"),
+                "location_name": self.thresholds.get(self._normalize_location(location), {}).get("name", "Không xác định"),
                 "temperature": temperature,
                 "humidity": humidity,
                 "status": "ERROR",
@@ -239,6 +327,10 @@ class AlertSystem:
 # 5. CHẠY KIỂM THỬ ĐỘC LẬP (UNIT TEST CÁC KỊCH BẢN)
 # ==============================================================================
 if __name__ == "__main__":
+    import sys
+
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     alert_system = AlertSystem()
 
     test_cases = [

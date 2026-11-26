@@ -127,7 +127,7 @@ sequenceDiagram
             Main->>Stats: record_error(error)
         end
     end
-    Main->>View: render_snapshot(snapshot, step_alerts, step)
+    Main->>View: render_snapshot(snapshot, step_alerts, step, current_timestamp)
     Main->>Stats: get_summary / export
     Main->>View: render_summary(summary)
 ```
@@ -143,6 +143,8 @@ Quan trọng: `AlertSystem.evaluate()` chỉ nhận reading ngay sau khi `update
 - Sensor ID không tồn tại: ghi `UNKNOWN_SENSOR`, không evaluate.
 
 Timestamp mỗi bước được tạo bằng `start_time + step_index * step_seconds`, độc lập clock của máy.
+
+Sau RECOVER, last valid measurement vẫn được giữ nhưng có timestamp cũ. Orchestrator truyền timestamp bước hiện tại cho Display; Display đánh dấu `cho du lieu moi` và không hiển thị NORMAL cho tới khi Sensor chấp nhận reading mới. Renderer cũ chỉ nhận ba tham số vẫn được hỗ trợ qua compatibility check.
 
 ## 6. Hướng dẫn tích hợp
 
@@ -173,6 +175,8 @@ Schema này là integration assumption, chưa phải baseline đã phê duyệt;
 
 Cung cấp `render_snapshot(readings, alerts, step_index)` và `render_summary(summary)`. `readings` có cả Sensor ACTIVE, INACTIVE, ERROR; TV5 phải thể hiện rõ giá trị cũ của Sensor lỗi/không hoạt động không phải reading mới.
 
+API mở rộng tương thích là `render_snapshot(..., current_timestamp=None)`. Khi có timestamp, freshness chỉ đúng nếu timestamp của reading bằng timestamp bước hiện tại.
+
 ## 7. Độ phức tạp
 
 | Thao tác | Thời gian trung bình | Bộ nhớ bổ sung |
@@ -193,12 +197,12 @@ Chạy:
 python -m unittest discover -s tests -v
 ```
 
-Kết quả kiểm thử hồi quy ngày 25/11/2026: **35 test chạy, 35 PASS, 0 FAIL, 0 SKIP**.
+Kết quả kiểm thử Phase 3B ngày 26/11/2026: **92 test chạy, 92 PASS, 0 FAIL, 0 ERROR, 0 SKIP**. Toàn bộ 77 test trước Phase 3B được bảo toàn.
 
-Test bao phủ Sensor, Manager và orchestrator. Orchestrator hiện được kiểm tra bằng test double cho TV2–TV5. Real integration chưa thể xác minh vì repository chưa có implementation của bốn module đó.
+Test bao phủ Sensor, Manager, orchestrator, adapters, StatisticsTracker, Display và E2E dùng các module production thật. Mock tests cũ vẫn được giữ để kiểm tra routing cô lập.
 
 ## 9. Integration findings
 
-1. `INT-001` — MEDIUM — Error Record Schema chưa được Master Handoff khóa đầy đủ; cần TV1/TV4 thống nhất.
-2. `INT-002` — MEDIUM — Summary Schema chưa có cấu trúc cụ thể; `main.py` chỉ chuyển nguyên kết quả `get_summary()` sang TV5.
-3. `INT-003` — HIGH (system integration) — TV2–TV5 chưa có trong repository tại thời điểm bàn giao; chưa thể chạy chương trình end-to-end thật.
+1. Error Record đã được khóa và kiểm thử theo DR-02.
+2. Summary dùng `error_count`, `errors_by_type`; `total_errors` là alias dẫn xuất cho TV5.
+3. Real integration đã được kiểm thử bằng deterministic E2E và DataSimulator thật.
