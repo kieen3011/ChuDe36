@@ -1,12 +1,14 @@
 """FastAPI application factory va middleware bao mat."""
 
 import re
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import HTMLResponse
 
 from web_api.config import MAX_REQUEST_BODY_BYTES, cors_origins, docs_enabled
 from web_api.errors import (
@@ -93,6 +95,13 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, internal_error_handler)
     app.include_router(health_router)
     app.include_router(simulation_router)
+
+    @app.get("/", include_in_schema=False, response_class=HTMLResponse)
+    def frontend_index() -> HTMLResponse:
+        """Tra trang frontend hien co ma khong them vao OpenAPI."""
+        frontend_path = Path(__file__).resolve().parents[1] / "frontend" / "index.html"
+        return HTMLResponse(frontend_path.read_text(encoding="utf-8"))
+
     return app
 
 
