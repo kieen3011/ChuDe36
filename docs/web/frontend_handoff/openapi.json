@@ -1,0 +1,861 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CHUDE36 IoT Warehouse API",
+    "version": "1"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Tra liveness va version cong khai.",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config": {
+      "get": {
+        "summary": "Get Config",
+        "description": "Tra ban sao approved config va resource limit.",
+        "operationId": "get_config_api_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Config Api Config Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/simulations/run": {
+      "post": {
+        "summary": "Run Simulation Endpoint",
+        "description": "Chay synchronous core trong worker thread cua FastAPI.",
+        "operationId": "run_simulation_endpoint_api_simulations_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanonicalErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Content Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanonicalErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanonicalErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanonicalErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AlertRecord": {
+        "properties": {
+          "sensor_id": {
+            "type": "string",
+            "title": "Sensor Id"
+          },
+          "location_id": {
+            "type": "string",
+            "title": "Location Id"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "WARNING",
+              "CRITICAL"
+            ],
+            "title": "Severity"
+          },
+          "violated_metrics": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "temperature",
+                "humidity"
+              ]
+            },
+            "type": "array",
+            "title": "Violated Metrics"
+          },
+          "temperature": {
+            "type": "number",
+            "title": "Temperature"
+          },
+          "humidity": {
+            "type": "number",
+            "title": "Humidity"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sensor_id",
+          "location_id",
+          "timestamp",
+          "severity",
+          "violated_metrics",
+          "temperature",
+          "humidity"
+        ],
+        "title": "AlertRecord"
+      },
+      "CanonicalErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorEnvelope"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "CanonicalErrorResponse"
+      },
+      "ErrorDetail": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "reason"
+        ],
+        "title": "ErrorDetail"
+      },
+      "ErrorEnvelope": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            },
+            "type": "array",
+            "title": "Details"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "details",
+          "request_id"
+        ],
+        "title": "ErrorEnvelope"
+      },
+      "ErrorRecord": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "sensor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sensor Id"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "sensor_id",
+          "location_id",
+          "timestamp",
+          "message"
+        ],
+        "title": "ErrorRecord"
+      },
+      "EventRecord": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "sensor_id": {
+            "type": "string",
+            "title": "Sensor Id"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          },
+          "humidity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Humidity"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "sensor_id",
+          "timestamp",
+          "temperature",
+          "humidity"
+        ],
+        "title": "EventRecord"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          },
+          "api_version": {
+            "type": "string",
+            "title": "Api Version"
+          },
+          "core_version": {
+            "type": "string",
+            "title": "Core Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "api_version",
+          "core_version"
+        ],
+        "title": "HealthResponse"
+      },
+      "HistoryPoint": {
+        "properties": {
+          "step_index": {
+            "type": "integer",
+            "title": "Step Index"
+          },
+          "simulated_at": {
+            "type": "string",
+            "title": "Simulated At"
+          },
+          "freshness": {
+            "type": "string",
+            "enum": [
+              "FRESH",
+              "STALE",
+              "NO_DATA",
+              "RECOVERY_PENDING"
+            ],
+            "title": "Freshness"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_index",
+          "simulated_at",
+          "freshness",
+          "value"
+        ],
+        "title": "HistoryPoint"
+      },
+      "LocationCounts": {
+        "properties": {
+          "WARNING": {
+            "type": "integer",
+            "title": "Warning"
+          },
+          "CRITICAL": {
+            "type": "integer",
+            "title": "Critical"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "WARNING",
+          "CRITICAL",
+          "total"
+        ],
+        "title": "LocationCounts"
+      },
+      "ReadingRecord": {
+        "properties": {
+          "sensor_id": {
+            "type": "string",
+            "title": "Sensor Id"
+          },
+          "sensor_type": {
+            "type": "string",
+            "title": "Sensor Type"
+          },
+          "location_id": {
+            "type": "string",
+            "title": "Location Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE",
+              "ERROR"
+            ],
+            "title": "Status"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          },
+          "humidity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Humidity"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sensor_id",
+          "sensor_type",
+          "location_id",
+          "status",
+          "temperature",
+          "humidity",
+          "timestamp"
+        ],
+        "title": "ReadingRecord"
+      },
+      "SensorSnapshot": {
+        "properties": {
+          "reading": {
+            "$ref": "#/components/schemas/ReadingRecord"
+          },
+          "freshness": {
+            "type": "string",
+            "enum": [
+              "FRESH",
+              "STALE",
+              "NO_DATA",
+              "RECOVERY_PENDING"
+            ],
+            "title": "Freshness"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reading",
+          "freshness"
+        ],
+        "title": "SensorSnapshot"
+      },
+      "SeverityStatistics": {
+        "properties": {
+          "WARNING": {
+            "type": "integer",
+            "title": "Warning"
+          },
+          "CRITICAL": {
+            "type": "integer",
+            "title": "Critical"
+          }
+        },
+        "type": "object",
+        "required": [
+          "WARNING",
+          "CRITICAL"
+        ],
+        "title": "SeverityStatistics"
+      },
+      "SimulationMetadata": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          },
+          "api_version": {
+            "type": "string",
+            "title": "Api Version"
+          },
+          "core_version": {
+            "type": "string",
+            "title": "Core Version"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "random",
+              "demo"
+            ],
+            "title": "Mode"
+          },
+          "effective_seed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Seed"
+          },
+          "actual_step_count": {
+            "type": "integer",
+            "title": "Actual Step Count"
+          },
+          "step_interval_seconds": {
+            "type": "number",
+            "title": "Step Interval Seconds"
+          },
+          "simulated_start": {
+            "type": "string",
+            "title": "Simulated Start"
+          },
+          "simulated_end": {
+            "type": "string",
+            "title": "Simulated End"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "api_version",
+          "core_version",
+          "mode",
+          "effective_seed",
+          "actual_step_count",
+          "step_interval_seconds",
+          "simulated_start",
+          "simulated_end",
+          "generated_at"
+        ],
+        "title": "SimulationMetadata"
+      },
+      "SimulationRunRequest": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "random",
+              "demo"
+            ],
+            "title": "Mode"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed",
+            "default": "CHUDE36-DEMO"
+          },
+          "step_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Count",
+            "default": 10
+          },
+          "step_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Interval Seconds",
+            "default": 60.0
+          },
+          "thresholds": {
+            "type": "null",
+            "title": "Thresholds"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "SimulationRunRequest",
+        "description": "Request chay mot phien mo phong stateless."
+      },
+      "SimulationRunResponse": {
+        "properties": {
+          "metadata": {
+            "$ref": "#/components/schemas/SimulationMetadata"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineStep"
+            },
+            "type": "array",
+            "title": "Timeline"
+          },
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingRecord"
+            },
+            "type": "array",
+            "title": "Readings"
+          },
+          "temperature_history": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/HistoryPoint"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Temperature History"
+          },
+          "humidity_history": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/HistoryPoint"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Humidity History"
+          },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertRecord"
+            },
+            "type": "array",
+            "title": "Alerts"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorRecord"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/SummaryRecord"
+          },
+          "statistics": {
+            "$ref": "#/components/schemas/SimulationStatistics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metadata",
+          "timeline",
+          "readings",
+          "temperature_history",
+          "humidity_history",
+          "alerts",
+          "errors",
+          "summary",
+          "statistics"
+        ],
+        "title": "SimulationRunResponse"
+      },
+      "SimulationStatistics": {
+        "properties": {
+          "by_location": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/LocationCounts"
+            },
+            "type": "object",
+            "title": "By Location"
+          },
+          "by_severity": {
+            "$ref": "#/components/schemas/SeverityStatistics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "by_location",
+          "by_severity"
+        ],
+        "title": "SimulationStatistics"
+      },
+      "SummaryRecord": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "total_alerts": {
+            "type": "integer",
+            "title": "Total Alerts"
+          },
+          "warning_count": {
+            "type": "integer",
+            "title": "Warning Count"
+          },
+          "critical_count": {
+            "type": "integer",
+            "title": "Critical Count"
+          },
+          "error_count": {
+            "type": "integer",
+            "title": "Error Count"
+          },
+          "by_location": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/LocationCounts"
+            },
+            "type": "object",
+            "title": "By Location"
+          },
+          "errors_by_type": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Errors By Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "total_alerts",
+          "warning_count",
+          "critical_count",
+          "error_count",
+          "by_location",
+          "errors_by_type"
+        ],
+        "title": "SummaryRecord"
+      },
+      "TimelineStep": {
+        "properties": {
+          "step_index": {
+            "type": "integer",
+            "title": "Step Index"
+          },
+          "simulated_at": {
+            "type": "string",
+            "title": "Simulated At"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventRecord"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "sensors": {
+            "items": {
+              "$ref": "#/components/schemas/SensorSnapshot"
+            },
+            "type": "array",
+            "title": "Sensors"
+          },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertRecord"
+            },
+            "type": "array",
+            "title": "Alerts"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorRecord"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "cumulative_summary": {
+            "$ref": "#/components/schemas/SummaryRecord"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_index",
+          "simulated_at",
+          "events",
+          "sensors",
+          "alerts",
+          "errors",
+          "cumulative_summary"
+        ],
+        "title": "TimelineStep"
+      }
+    }
+  }
+}

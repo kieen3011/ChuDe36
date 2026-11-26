@@ -138,6 +138,17 @@ class StatisticsTracker:
             "errors_by_type": dict(sorted(self._errors_by_type.items())),
         }
 
+    def get_alerts(self) -> list[dict[str, Any]]:
+        """Tra ban sao cac canh bao theo thu tu ghi nhan."""
+        return [
+            {**item, "violated_metrics": list(item["violated_metrics"])}
+            for item in self._alerts
+        ]
+
+    def get_errors(self) -> list[dict[str, Any]]:
+        """Tra ban sao cac loi theo thu tu ghi nhan."""
+        return [dict(item) for item in self._errors]
+
     @staticmethod
     def _prepare_paths(file_path: str) -> tuple[Path, Path]:
         if not isinstance(file_path, str) or not file_path.strip():

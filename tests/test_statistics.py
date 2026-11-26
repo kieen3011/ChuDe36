@@ -28,6 +28,26 @@ def make_alert(
 
 
 class StatisticsTrackerTests(unittest.TestCase):
+    def test_get_alerts_returns_deeply_independent_records(self):
+        tracker = StatisticsTracker("COPY-TEST")
+        alert = {
+            "sensor_id": "S1",
+            "location_id": "A",
+            "timestamp": "2026-01-01T00:00:00",
+            "severity": "WARNING",
+            "violated_metrics": ["temperature"],
+            "temperature": 31.0,
+            "humidity": 50.0,
+        }
+        tracker.record_alert(alert)
+
+        records = tracker.get_alerts()
+        records[0]["violated_metrics"].append("humidity")
+
+        self.assertEqual(
+            tracker.get_alerts()[0]["violated_metrics"],
+            ["temperature"],
+        )
     def test_count_by_location_and_separate_severity(self):
         tracker = StatisticsTracker("TEST-01")
         self.assertTrue(tracker.record_alert(make_alert()))

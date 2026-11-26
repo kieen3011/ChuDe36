@@ -1,0 +1,36 @@
+{
+  "validation_error": {
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "Request validation failed",
+      "details": [
+        {
+          "field": "mode",
+          "reason": "Input should be 'random' or 'demo'"
+        }
+      ],
+      "request_id": "ad12d38c-e80c-49d5-a714-83ac58584d86"
+    }
+  },
+  "malformed_json": {
+    "error": {
+      "code": "MALFORMED_JSON",
+      "message": "Malformed JSON",
+      "details": [
+        {
+          "field": "8",
+          "reason": "JSON decode error"
+        }
+      ],
+      "request_id": "391b475e-693e-4882-80ae-343f73444f8b"
+    }
+  },
+  "payload_too_large": {
+    "error": {
+      "code": "PAYLOAD_TOO_LARGE",
+      "message": "Request body exceeds 64 KiB",
+      "details": [],
+      "request_id": "3b8b2e18-183b-46e2-a809-f2ef11808416"
+    }
+  }
+}
