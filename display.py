@@ -8,7 +8,12 @@ def _format_value(value):
     return str(value)
 
 
-def render_snapshot(readings: list[dict], alerts: list[dict], step_index: int) -> None:
+def render_snapshot(
+    readings: list[dict],
+    alerts: list[dict],
+    step_index: int,
+    current_timestamp: str | None = None,
+) -> None:
     """Hien thi snapshot cua mot buoc ma khong thay doi du lieu dau vao."""
     alerts_by_sensor = {}
     for alert in alerts:
@@ -31,16 +36,24 @@ def render_snapshot(readings: list[dict], alerts: list[dict], step_index: int) -
         temperature = _format_value(raw_temp)
         humidity = _format_value(raw_hum)
 
-        if status == "ACTIVE":
+        has_last_value = (
+            (raw_temp is not None and not isinstance(raw_temp, bool))
+            or (raw_hum is not None and not isinstance(raw_hum, bool))
+        )
+        is_fresh = (
+            current_timestamp is None
+            or reading.get("timestamp") == current_timestamp
+        )
+
+        if status == "ACTIVE" and is_fresh:
             alert = alerts_by_sensor.get(sensor_id)
             alert_level = alert["severity"] if alert is not None else "NORMAL"
             stale_label = ""
+        elif status == "ACTIVE" and has_last_value:
+            alert_level = "N/A"
+            stale_label = " (cho du lieu moi)"
         else:
             alert_level = "N/A"
-            has_last_value = (
-                (raw_temp is not None and not isinstance(raw_temp, bool))
-                or (raw_hum is not None and not isinstance(raw_hum, bool))
-            )
             stale_label = " (gia tri cu)" if has_last_value else ""
 
         print(
