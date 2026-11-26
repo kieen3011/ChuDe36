@@ -22,6 +22,13 @@ class HealthApiTests(unittest.TestCase):
         })
         self.assertNotIn(os.getcwd(), response.text)
 
+    def test_root_serves_frontend_without_openapi_route(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("<html", response.text.lower())
+        self.assertIn("IoT", response.text)
+        self.assertNotIn("/", self.client.get("/openapi.json").json()["paths"])
+
     def test_openapi_can_be_disabled_by_environment(self):
         with patch.dict(os.environ, {"CHUDE36_DOCS_ENABLED": "0"}):
             client = ApiClient(create_app())
