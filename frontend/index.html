@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chủ Đề 36 — Hệ Thống Giám Sát Vi Khí Hậu Kho Nông Sản (IoT)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            slate: {
+              850: '#151e2e',
+              925: '#0c1220',
+              950: '#070b14',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    @keyframes pulse-border {
+      0%, 100% { border-color: rgba(239, 68, 68, 0.8); box-shadow: 0 0 15px rgba(239, 68, 68, 0.15); }
+      50% { border-color: rgba(239, 68, 68, 0.25); box-shadow: 0 0 4px rgba(239, 68, 68, 0.05); }
+    }
+    .critical-card { animation: pulse-border 2s infinite; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col selection:bg-emerald-500/30 selection:text-emerald-200">
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+
+  <!-- Top Navigation & System Header -->
+  <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-30">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 py-3.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+      <div class="flex items-start sm:items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-950/50">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight text-white">
+              Hệ Thống Giám Sát Vi Khí Hậu Kho Nông Sản — Chủ Đề 36
+            </h1>
+            <span class="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              Nhóm IoT Thông Minh
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Kho bảo quản nông sản xuất khẩu TP.HCM • Mô hình Ornstein–Uhlenbeck &amp; Cảnh báo đa tầng
+          </p>
+        </div>
+      </div>
+
+      <!-- Backend Mode Switcher & Step Counter -->
+      <div class="flex flex-wrap items-center gap-2.5">
+        <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5">
+          <span id="connDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="text-xs text-slate-400">Nguồn dữ liệu:</span>
+          <select id="dataSourceSelect" class="bg-transparent text-xs font-medium text-slate-200 focus:outline-none cursor-pointer">
+            <option value="local" class="bg-slate-900">Trình duyệt (Local Engine)</option>
+            <option value="fastapi" class="bg-slate-900">FastAPI Backend (localhost:8000)</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5">
+          <span class="text-xs text-slate-400">Bước mô phỏng:</span>
+          <span id="stepBadge" class="font-mono text-sm font-bold text-cyan-400 tabular-nums">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Control Bar -->
+    <div class="bg-slate-925 border-t border-slate-800/80">
+      <div class="max-w-[1440px] mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
+        <!-- Left: Seed & Simulation Mode -->
+        <div class="flex flex-wrap items-center gap-2.5">
+          <div class="flex items-center bg-slate-900 border border-slate-700/80 rounded-xl overflow-hidden">
+            <label for="mssvInput" class="px-2.5 py-1.5 text-xs font-medium text-slate-400 bg-slate-850 border-r border-slate-700/80">
+              MSSV Seed
+            </label>
+            <input
+              id="mssvInput"
+              type="text"
+              value="21520001"
+              placeholder="Nhập MSSV..."
+              class="w-28 px-2.5 py-1.5 text-xs font-mono text-white bg-transparent focus:outline-none"
+            />
+            <button
+              id="applySeedBtn"
+              class="px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-emerald-400 border-l border-slate-700/80 transition cursor-pointer"
+              title="Khởi tạo lại hạt giống ngẫu nhiên và xóa lịch sử"
+            >
+              Áp dụng / Reset
+            </button>
+          </div>
+
+          <div class="flex items-center bg-slate-900 border border-slate-700/80 rounded-xl p-1">
+            <button
+              id="modeRandomBtn"
+              data-mode="random"
+              class="px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-600 text-white shadow transition cursor-pointer"
+            >
+              Ngẫu nhiên (Random Walk)
+            </button>
+            <button
+              id="modeDemoBtn"
+              data-mode="demo"
+              class="px-3 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition cursor-pointer"
+            >
+              Kịch bản mẫu (Demo Mode)
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Playback & Export Actions -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            id="toggleAutoBtn"
+            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 text-white shadow-sm transition cursor-pointer"
+          >
+            <svg id="playIcon" class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+            </svg>
+            <span id="toggleAutoText">Chạy tự động</span>
+          </button>
+
+          <button
+            id="nextStepBtn"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
+          >
+            <span>+1 Step</span>
+          </button>
+
+          <button
+            id="openAddZoneModalBtn"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 transition cursor-pointer"
+          >
+            <span>+ Thêm khu vực động</span>
+          </button>
+
+          <div class="h-5 w-px bg-slate-800 hidden sm:block"></div>
+
+          <button
+            id="exportCsvBtn"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-700/80 transition cursor-pointer"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>CSV (alert_logs.csv)</span>
+          </button>
+
+          <button
+            id="exportJsonBtn"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-amber-400 border border-slate-700/80 transition cursor-pointer"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>JSON (report.json)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- Section 1: Sensor KPI Cards Grid -->
+    <section aria-label="Giám sát các khu vực">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+        <div class="flex items-center gap-2">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-300">
+            1. Trạng Thái Cảm Biến Theo Khu Vực
+          </h2>
+          <span id="zoneCountBadge" class="px-2 py-0.5 text-xs font-mono rounded-full bg-slate-800 text-slate-300">
+            3 khu vực
+          </span>
+        </div>
+        <p class="text-xs text-slate-400">
+          Quy tắc mức độ: <span class="text-emerald-400 font-medium">NORMAL</span> (trong ngưỡng) •
+          <span class="text-amber-400 font-medium">WARNING</span> (vượt ngưỡng &lt; 3°C / độ ẩm) •
+          <span class="text-rose-400 font-medium">CRITICAL</span> (vượt ngưỡng ≥ 3°C)
+        </p>
+      </div>
+
+      <div id="sensorCardsGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <!-- Sensor Cards rendered dynamically via JS -->
+      </div>
+    </section>
+
+    <!-- Section 2: Real-time Charts -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-4" aria-label="Biểu đồ biến thiên thời gian thực">
+      <!-- Temperature Chart Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+              Biến Thiên Nhiệt Độ Thời Gian Thực (°C)
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">Đường nét đứt thể hiện ngưỡng cảnh báo trên của khu vực đang chọn</p>
+          </div>
+          <select id="chartZoneFilter" class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-200 focus:outline-none cursor-pointer">
+            <option value="ALL">Tất cả khu vực</option>
+            <option value="A">Khu A (COLD-01: 2°C–8°C)</option>
+            <option value="B">Khu B (DRY-01: 18°C–25°C)</option>
+            <option value="C">Khu C (SERVER-01: &lt; 30°C)</option>
+          </select>
+        </div>
+        <div class="relative h-64 w-full">
+          <canvas id="tempChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Humidity Chart Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+              Biến Thiên Độ Ẩm Tương Đối (%)
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">Tương quan vật lý nghịch biến với nhiệt độ theo mô hình mô phỏng</p>
+          </div>
+          <span class="text-xs font-mono text-slate-400 bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-xl">
+            Cửa sổ: 25 bước gần nhất
+          </span>
+        </div>
+        <div class="relative h-64 w-full">
+          <canvas id="humidityChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Statistics Breakdown & Real-time Alert/Error Logs -->
+    <section class="grid grid-cols-1 xl:grid-cols-12 gap-4" aria-label="Thống kê và nhật ký cảnh báo">
+      <!-- Left 4 cols: Summary Statistics -->
+      <div class="xl:col-span-4 space-y-4">
+        <!-- Environmental Alert Stats -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-white">Thống Kê Cảnh Báo Vượt Ngưỡng</h3>
+            <span id="totalAlertsBadge" class="px-2.5 py-0.5 text-xs font-mono font-bold rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+              Tổng: 0
+            </span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-slate-800 text-[11px] uppercase text-slate-400">
+                  <th class="py-2 pr-2">Khu vực</th>
+                  <th class="py-2 px-2 text-center text-amber-400">WARNING</th>
+                  <th class="py-2 px-2 text-center text-rose-400">CRITICAL</th>
+                  <th class="py-2 pl-2 text-right">Tổng</th>
+                </tr>
+              </thead>
+              <tbody id="alertStatsTableBody" class="divide-y divide-slate-800/60 text-xs font-mono">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- System Error Stats (TV3 & TV4 Separated Tracking) -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-white">Thống Kê Lỗi Ngoại Lệ Hệ Thống</h3>
+            <span id="totalErrorsBadge" class="px-2.5 py-0.5 text-xs font-mono font-bold rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">
+              Tổng lỗi: 0
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mb-3">
+            Tách biệt khỏi cảnh báo môi trường (bắt ngoại lệ <code class="text-slate-300">SensorDisconnectError</code> &amp; <code class="text-slate-300">OutOfRangeDataError</code>).
+          </p>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+              <div class="text-[11px] font-semibold text-slate-400">DISCONNECT (None)</div>
+              <div id="disconnectCountStat" class="text-xl font-mono font-bold text-orange-400 mt-1 tabular-nums">0</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">Mất kết nối cảm biến</div>
+            </div>
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+              <div class="text-[11px] font-semibold text-slate-400">INVALID_DATA (-999°C)</div>
+              <div id="invalidDataCountStat" class="text-xl font-mono font-bold text-purple-400 mt-1 tabular-nums">0</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">Dữ liệu nhiễu phần cứng</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right 8 cols: Real-time Event & Alert Logs -->
+      <div class="xl:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <h3 class="text-sm font-bold text-white">Nhật Ký Cảnh Báo &amp; Ngoại Lệ Thời Gian Thực</h3>
+            <p class="text-xs text-slate-400">Ghi nhận tự động các sự kiện vượt ngưỡng và ngoại lệ phần cứng (chống trùng lặp theo bước)</p>
+          </div>
+          <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl p-1">
+            <button data-log-filter="ALL" class="log-filter-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-white cursor-pointer">
+              Tất cả
+            </button>
+            <button data-log-filter="WARNING" class="log-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium text-amber-400 hover:bg-slate-800/60 cursor-pointer">
+              WARNING
+            </button>
+            <button data-log-filter="CRITICAL" class="log-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium text-rose-400 hover:bg-slate-800/60 cursor-pointer">
+              CRITICAL
+            </button>
+            <button data-log-filter="ERROR" class="log-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium text-purple-400 hover:bg-slate-800/60 cursor-pointer">
+              ERROR
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto overflow-y-auto max-h-[360px] border border-slate-800 rounded-xl">
+          <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-950 sticky top-0 z-10 text-[11px] uppercase text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="py-2.5 px-3">Bước</th>
+                <th class="py-2.5 px-3">Thời gian</th>
+                <th class="py-2.5 px-3">Sensor</th>
+                <th class="py-2.5 px-3">Khu vực</th>
+                <th class="py-2.5 px-3">Nhiệt độ</th>
+                <th class="py-2.5 px-3">Độ ẩm</th>
+                <th class="py-2.5 px-3">Mức độ</th>
+                <th class="py-2.5 px-3">Chi tiết sự kiện</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody" class="divide-y divide-slate-800/70 text-xs">
+              <tr>
+                <td colspan="8" class="py-8 text-center text-slate-500">
+                  Chưa có cảnh báo hoặc ngoại lệ nào được ghi nhận. Nhấn "+1 Step" hoặc "Chạy tự động" để bắt đầu.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Register Dynamic Zone -->
+  <div id="addZoneModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white">Thêm Khu Vực Cảm Biến Động</h3>
+        <button id="closeAddZoneModalBtn" class="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <form id="addZoneForm" class="mt-4 space-y-3.5 text-xs">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 font-medium mb-1">Mã Khu Vực (Location)</label>
+            <input id="newZoneId" type="text" required value="D" maxlength="10" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-slate-400 font-medium mb-1">Mã Cảm Biến (Sensor ID)</label>
+            <input id="newSensorId" type="text" required value="FREEZER-01" maxlength="20" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-slate-400 font-medium mb-1">Tên Mô Tả Kho</label>
+          <input id="newZoneName" type="text" required value="Kho D — Đông lạnh sâu xuất khẩu" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:border-emerald-500 focus:outline-none" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 font-medium mb-1">Nhiệt độ Min (°C)</label>
+            <input id="newTempMin" type="number" step="0.5" required value="-22" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-slate-400 font-medium mb-1">Nhiệt độ Max (°C)</label>
+            <input id="newTempMax" type="number" step="0.5" required value="-18" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 font-medium mb-1">Độ ẩm Min (%)</label>
+            <input id="newHumMin" type="number" step="1" required value="75" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-slate-400 font-medium mb-1">Độ ẩm Max (%)</label>
+            <input id="newHumMax" type="number" step="1" required value="85" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none" />
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-400 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+          Thuật toán <strong>Ornstein–Uhlenbeck</strong> sẽ tự động tính điểm cân bằng (μ) và độ lệch chuẩn (σ) theo quy tắc 3-Sigma cho khu vực mới này.
+        </p>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" id="cancelAddZoneBtn" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium cursor-pointer">
+            Hủy
+          </button>
+          <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer">
+            Đăng ký khu vực
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/80 bg-slate-950 py-3.5 px-4 sm:px-6 text-xs text-slate-500">
+    <div class="max-w-[1440px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div>
+        Đồ án Python Cuối Kỳ — Chủ Đề 36: Mô phỏng cảm biến nhiệt độ/độ ẩm &amp; cảnh báo ngưỡng (Nhóm IoT thông minh)
+      </div>
+      <div class="font-mono text-[11px] text-slate-400">
+        TV1: Kiên • TV2: Lợi • TV3: Lộc • TV4: Lương • TV5: Thục
+      </div>
+    </div>
+  </footer>
+
+  <!-- Application Logic (OOP Architecture matching Python Core) -->
+  <script>
+    /**
+     * 1. DETERMINISTIC SEEDED PRNG (Mulberry32 + FNV-1a String Hash)
+     * Đảm bảo tính tái lập (Seed Reproducibility) theo MSSV giống random.Random(mssv)
+     */
+    class SeededRandom {
+      constructor(seedStr) {
+        this.setSeed(seedStr);
+      }
+
+      setSeed(seedStr) {
+        let h = 2166136261 >>> 0;
+        const s = String(seedStr || '21520001');
+        for (let i = 0; i < s.length; i++) {
+          h ^= s.charCodeAt(i);
+          h = Math.imul(h, 16777619);
+        }
+        this.state = h >>> 0;
+      }
+
+      next() {
+        let t = (this.state += 0x6d2b79f5);
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      }
+
+      gauss(mean = 0, std = 1) {
+        let u = 0, v = 0;
+        while (u === 0) u = this.next();
+        while (v === 0) v = this.next();
+        const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        return mean + z * std;
+      }
+    }
+
+    /**
+     * 2. DATA SIMULATOR ENGINE (TV2 — Lợi)
+     * Mô hình Ornstein–Uhlenbeck rời rạc + Thermal Momentum + Tương quan Nhiệt/Ẩm
+     */
+    class DataSimulator {
+      constructor(mssv = '21520001', inertia = 0.35) {
+        this.rng = new SeededRandom(mssv);
+        this.inertia = inertia;
+        this.zones = {};
+        this.state = {};
+        this.faultActive = {};
+        this.pendingInject = {}; // Cho phép tiêm thủ công Disconnect (-1) hoặc Noise (-999) ở bước kế tiếp
+      }
+
+      registerZone(zoneId, config) {
+        const tMean = (config.tempMin + config.tempMax) / 2;
+        const hMean = (config.humMin + config.humMax) / 2;
+        this.zones[zoneId] = {
+          ...config,
+          tMean,
+          tSigma: Math.max(0.15, (config.tempMax - config.tempMin) / 6),
+          hMean,
+          hSigma: Math.max(0.5, (config.humMax - config.humMin) / 6),
+        };
+        this.state[zoneId] = {
+          temp: tMean,
+          humidity: hMean,
+          velT: 0,
+          velH: 0,
+        };
+        this.faultActive[zoneId] = false;
+        this.pendingInject[zoneId] = null;
+      }
+
+      resetAll(mssv) {
+        this.rng.setSeed(mssv);
+        Object.keys(this.zones).forEach((zId) => {
+          const cfg = this.zones[zId];
+          this.state[zId] = {
+            temp: cfg.tMean,
+            humidity: cfg.hMean,
+            velT: 0,
+            velH: 0,
+          };
+          this.faultActive[zId] = false;
+          this.pendingInject[zId] = null;
+        });
+      }
+
+      nextReading(zoneId, mode = 'random', step = 0) {
+        const cfg = this.zones[zoneId];
+        const st = this.state[zoneId];
+        if (!cfg || !st) return { kind: 'ERROR', errorType: 'UNKNOWN_SENSOR' };
+
+        // Kiểm tra tiêm lỗi thủ công từ nút bấm người dùng
+        if (this.pendingInject[zoneId] === 'DISCONNECT') {
+          this.pendingInject[zoneId] = null;
+          return { kind: 'DISCONNECT', temp: null, humidity: null };
+        }
+        if (this.pendingInject[zoneId] === 'INVALID_DATA') {
+          this.pendingInject[zoneId] = null;
+          return { kind: 'INVALID_DATA', temp: -999.0, humidity: -999.0 };
+        }
+
+        // Chế độ Kịch bản mẫu (Demo Mode - tái hiện kịch bản chuẩn của TV1/TV2)
+        if (mode === 'demo') {
+          if (zoneId === 'A') {
+            if (step === 1) return this._applyDirect(zoneId, 9.0, 90.0);   // WARNING (> 8°C)
+            if (step === 2) return this._applyDirect(zoneId, 12.0, 70.0);  // CRITICAL (>= 8 + 3°C)
+            if (step === 5) return { kind: 'DISCONNECT', temp: null, humidity: null };
+            if (step === 6) return { kind: 'INVALID_DATA', temp: -999.0, humidity: -999.0 };
+            if (step === 9) return this._applyDirect(zoneId, 5.0, 90.0);   // Phục hồi bình thường
+          }
+          if (zoneId === 'B' && step === 3) {
+            return this._applyDirect(zoneId, 22.0, 60.0); // WARNING độ ẩm chạm ngưỡng 60%
+          }
+          if (zoneId === 'C' && step === 4) {
+            return this._applyDirect(zoneId, 33.0, 50.0); // CRITICAL nhiệt độ >= 30 + 3°C
+          }
+        }
+
+        // Xác suất lỗi ngẫu nhiên nhẹ trong chế độ Random Walk (khi không bật sự cố điều hòa)
+        if (mode === 'random' && !this.faultActive[zoneId] && step > 1) {
+          const r = this.rng.next();
+          if (r < 0.025) return { kind: 'DISCONNECT', temp: null, humidity: null };
+          if (r < 0.05) return { kind: 'INVALID_DATA', temp: -999.0, humidity: -999.0 };
+        }
+
+        // Thuật toán Ornstein–Uhlenbeck + Quán tính nhiệt (Thermal Momentum)
+        let forceT;
+        if (this.faultActive[zoneId]) {
+          // Sự cố hỏng điều hòa: nhiệt độ tăng tịnh tiến vượt ngưỡng
+          const driftT = Math.max(0.85, cfg.tSigma * 1.6);
+          forceT = driftT + this.rng.gauss(0, cfg.tSigma * 0.35);
+        } else {
+          // Hồi quy Mean-Reverting về điểm cân bằng
+          const reversionSpeed = 0.22;
+          forceT = reversionSpeed * (cfg.tMean - st.temp) + this.rng.gauss(0, cfg.tSigma * 0.55);
+        }
+
+        const deltaT = this.inertia * st.velT + (1 - this.inertia) * forceT;
+        // Tương quan vật lý: nhiệt độ tăng làm độ ẩm giảm nhẹ
+        const thermalCoupling = -0.45 * deltaT;
+        const forceH = 0.2 * (cfg.hMean - st.humidity) + this.rng.gauss(0, cfg.hSigma * 0.5) + thermalCoupling;
+        const deltaH = this.inertia * st.velH + (1 - this.inertia) * forceH;
+
+        const newTemp = Number((st.temp + deltaT).toFixed(2));
+        const newHum = Number(Math.max(0, Math.min(100, st.humidity + deltaH)).toFixed(2));
+
+        st.velT = deltaT;
+        st.velH = deltaH;
+        st.temp = newTemp;
+        st.humidity = newHum;
+
+        return { kind: 'DATA', temp: newTemp, humidity: newHum };
+      }
+
+      _applyDirect(zoneId, temp, humidity) {
+        this.state[zoneId].temp = temp;
+        this.state[zoneId].humidity = humidity;
+        return { kind: 'DATA', temp, humidity };
+      }
+    }
+
+    /**
+     * 3. ALERT SYSTEM & EXCEPTION HANDLER (TV3 — Lộc)
+     * Phân loại NORMAL / WARNING / CRITICAL (CRITICAL_DELTA = 3.0°C)
+     */
+    class AlertSystem {
+      static CRITICAL_TEMP_DELTA = 3.0;
+      static CRITICAL_HUM_DELTA = 10.0;
+
+      static evaluate(zoneCfg, temp, humidity) {
+        const reasons = [];
+        let severity = 'NORMAL';
+
+        const escalate = (level) => {
+          if (level === 'CRITICAL') severity = 'CRITICAL';
+          else if (level === 'WARNING' && severity === 'NORMAL') severity = 'WARNING';
+        };
+
+        // Đánh giá nhiệt độ
+        if (zoneCfg.hasTempMin && temp < zoneCfg.tempMin) {
+          const diff = zoneCfg.tempMin - temp;
+          escalate(diff >= this.CRITICAL_TEMP_DELTA ? 'CRITICAL' : 'WARNING');
+          reasons.push(`Nhiệt độ thấp (${temp}°C < ${zoneCfg.tempMin}°C)`);
+        } else if (temp > zoneCfg.tempMax || (!zoneCfg.hasTempMin && temp >= zoneCfg.tempMax)) {
+          const diff = temp - zoneCfg.tempMax;
+          escalate(diff >= this.CRITICAL_TEMP_DELTA ? 'CRITICAL' : 'WARNING');
+          reasons.push(`Nhiệt độ cao (${temp}°C > ${zoneCfg.tempMax}°C)`);
+        }
+
+        // Đánh giá độ ẩm
+        if (zoneCfg.hasHumMin && humidity < zoneCfg.humMin) {
+          const diff = zoneCfg.humMin - humidity;
+          escalate(diff >= this.CRITICAL_HUM_DELTA ? 'CRITICAL' : 'WARNING');
+          reasons.push(`Độ ẩm thấp (${humidity}% < ${zoneCfg.humMin}%)`);
+        } else if (humidity > zoneCfg.humMax || (!zoneCfg.hasHumMin && humidity >= zoneCfg.humMax)) {
+          const diff = humidity - zoneCfg.humMax;
+          escalate(diff >= this.CRITICAL_HUM_DELTA ? 'CRITICAL' : 'WARNING');
+          reasons.push(`Độ ẩm cao (${humidity}% > ${zoneCfg.humMax}%)`);
+        }
+
+        return {
+          level: severity,
+          message: reasons.length > 0 ? reasons.join(' & ') : 'Thông số nằm trong ngưỡng an toàn',
+        };
+      }
+    }
+
+    /**
+     * 4. FASTAPI BACKEND ADAPTER (Kết nối tới TV1 Backend nếu người dùng chọn)
+     */
+    class BackendApiClient {
+      constructor(baseUrl = 'http://localhost:8000') {
+        this.baseUrl = baseUrl;
+      }
+
+      async fetchStep(step, mssv, mode) {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 1500);
+        try {
+          const res = await fetch(`${this.baseUrl}/api/step?step=${step}&mssv=${encodeURIComponent(mssv)}&mode=${mode}`, {
+            signal: controller.signal,
+          });
+          clearTimeout(id);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return await res.json();
+        } catch (err) {
+          clearTimeout(id);
+          throw err;
+        }
+      }
+    }
+
+    /**
+     * 5. MONITORING MANAGER & UI CONTROLLER (TV1 + TV4 + TV5)
+     */
+    class MonitoringDashboardApp {
+      constructor() {
+        this.step = 0;
+        this.mssv = '21520001';
+        this.mode = 'random';
+        this.dataSource = 'local';
+        this.autoInterval = null;
+        this.logFilter = 'ALL';
+        this.chartZoneFilter = 'ALL';
+
+        this.simulator = new DataSimulator(this.mssv);
+        this.apiClient = new BackendApiClient('http://localhost:8000');
+
+        // Danh sách cảm biến mặc định đúng chuẩn đề tài
+        this.sensors = {};
+        this.logs = [];
+        this.stats = {
+          byZone: {},
+          errors: { DISCONNECT: 0, INVALID_DATA: 0 },
+        };
+        this.chartHistory = {
+          labels: [],
+          temp: {},
+          humidity: {},
+        };
+
+        this._initDefaultZones();
+        this._initCharts();
+        this._bindEvents();
+        this.renderAll();
+      }
+
+      _initDefaultZones() {
+        const defaults = [
+          {
+            zoneId: 'A',
+            sensorId: 'COLD-01',
+            sensorType: 'COLD_STORAGE',
+            name: 'Khu A — Kho lạnh trái cây',
+            tempMin: 2.0,
+            tempMax: 8.0,
+            hasTempMin: true,
+            humMin: 85.0,
+            humMax: 95.0,
+            hasHumMin: true,
+            color: '#38bdf8',
+          },
+          {
+            zoneId: 'B',
+            sensorId: 'DRY-01',
+            sensorType: 'DRY_STORAGE',
+            name: 'Khu B — Kho hạt khô',
+            tempMin: 18.0,
+            tempMax: 25.0,
+            hasTempMin: true,
+            humMin: 35.0,
+            humMax: 60.0,
+            hasHumMin: false, // Ngưỡng chuẩn < 60%
+            color: '#fbbf24',
+          },
+          {
+            zoneId: 'C',
+            sensorId: 'SERVER-01',
+            sensorType: 'SERVER_ROOM',
+            name: 'Khu C — Phòng tủ điện / Máy chủ',
+            tempMin: 18.0,
+            tempMax: 30.0,
+            hasTempMin: false, // Ngưỡng chuẩn < 30°C
+            humMin: 40.0,
+            humMax: 60.0,
+            hasHumMin: true,
+            color: '#a78bfa',
+          },
+        ];
+
+        defaults.forEach((cfg) => this.addSensorZone(cfg, false));
+      }
+
+      addSensorZone(cfg, shouldRender = true) {
+        this.simulator.registerZone(cfg.zoneId, cfg);
+        this.sensors[cfg.zoneId] = {
+          ...cfg,
+          status: 'ACTIVE',        // ACTIVE | ERROR
+          freshness: 'FRESH',      // FRESH | STALE | PENDING_NEW
+          lastTemp: null,
+          lastHumidity: null,
+          alertLevel: 'NORMAL',
+          alertMessage: 'Sẵn sàng thu thập dữ liệu',
+        };
+        this.stats.byZone[cfg.zoneId] = { WARNING: 0, CRITICAL: 0 };
+        this.chartHistory.temp[cfg.zoneId] = [];
+        this.chartHistory.humidity[cfg.zoneId] = [];
+
+        if (shouldRender) {
+          this._updateZoneFilterDropdown();
+          this._rebuildChartDatasets();
+          this.renderAll();
+        }
+      }
+
+      async executeStep() {
+        this.step += 1;
+        const timestamp = new Date().toLocaleTimeString('vi-VN', { hour12: false });
+
+        // Nếu người dùng chọn kết nối FastAPI Backend
+        if (this.dataSource === 'fastapi') {
+          try {
+            await this.apiClient.fetchStep(this.step, this.mssv, this.mode);
+          } catch (e) {
+            this.showToast('Không kết nối được FastAPI (localhost:8000), tự động chuyển về Local Engine.', 'warning');
+            this.dataSource = 'local';
+            document.getElementById('dataSourceSelect').value = 'local';
+            this._updateConnIndicator();
+          }
+        }
+
+        // Duyệt từng khu vực và thực thi pipeline TV2 -> TV3 -> TV4
+        Object.keys(this.sensors).forEach((zId) => {
+          const s = this.sensors[zId];
+          const reading = this.simulator.nextReading(zId, this.mode, this.step);
+
+          if (reading.kind === 'DISCONNECT') {
+            s.status = 'ERROR';
+            s.freshness = 'STALE';
+            s.alertLevel = 'N/A';
+            s.alertMessage = 'SensorDisconnectError: Mất tín hiệu từ cảm biến';
+            this.stats.errors.DISCONNECT += 1;
+            this._pushLog({
+              step: this.step,
+              time: timestamp,
+              sensorId: s.sensorId,
+              zoneId: zId,
+              temp: s.lastTemp !== null ? `${s.lastTemp}°C (cũ)` : 'N/A',
+              humidity: s.lastHumidity !== null ? `${s.lastHumidity}% (cũ)` : 'N/A',
+              level: 'ERROR',
+              detail: 'SensorDisconnectError — Giữ nguyên giá trị hợp lệ gần nhất',
+            });
+          } else if (reading.kind === 'INVALID_DATA') {
+            s.status = 'ERROR';
+            s.freshness = 'STALE';
+            s.alertLevel = 'N/A';
+            s.alertMessage = 'OutOfRangeDataError: Dữ liệu nhiễu phần cứng (-999°C)';
+            this.stats.errors.INVALID_DATA += 1;
+            this._pushLog({
+              step: this.step,
+              time: timestamp,
+              sensorId: s.sensorId,
+              zoneId: zId,
+              temp: '-999.0°C (nhiễu)',
+              humidity: '-999.0% (nhiễu)',
+              level: 'ERROR',
+              detail: 'OutOfRangeDataError — Từ chối mẫu nhiễu, giữ giá trị cũ',
+            });
+          } else if (reading.kind === 'DATA') {
+            // Nếu cảm biến đang ở trạng thái ERROR hoặc PENDING_NEW thì khôi phục
+            s.status = 'ACTIVE';
+            s.freshness = 'FRESH';
+            s.lastTemp = reading.temp;
+            s.lastHumidity = reading.humidity;
+
+            const evalRes = AlertSystem.evaluate(s, reading.temp, reading.humidity);
+            s.alertLevel = evalRes.level;
+            s.alertMessage = evalRes.message;
+
+            if (evalRes.level === 'WARNING' || evalRes.level === 'CRITICAL') {
+              this.stats.byZone[zId][evalRes.level] += 1;
+              this._pushLog({
+                step: this.step,
+                time: timestamp,
+                sensorId: s.sensorId,
+                zoneId: zId,
+                temp: `${reading.temp}°C`,
+                humidity: `${reading.humidity}%`,
+                level: evalRes.level,
+                detail: evalRes.message,
+              });
+            }
+          }
+
+          // Lưu lịch sử biểu đồ (giữ giá trị cuối nếu lỗi để đường biểu đồ không bị đứt gãy)
+          this.chartHistory.temp[zId].push(s.lastTemp);
+          this.chartHistory.humidity[zId].push(s.lastHumidity);
+          if (this.chartHistory.temp[zId].length > 25) {
+            this.chartHistory.temp[zId].shift();
+            this.chartHistory.humidity[zId].shift();
+          }
+        });
+
+        this.chartHistory.labels.push(`B${this.step}`);
+        if (this.chartHistory.labels.length > 25) {
+          this.chartHistory.labels.shift();
+        }
+
+        this.renderAll();
+      }
+
+      recoverSensor(zoneId) {
+        const s = this.sensors[zoneId];
+        if (!s) return;
+        this.simulator.faultActive[zoneId] = false;
+        this.simulator.pendingInject[zoneId] = null;
+        s.status = 'ACTIVE';
+        s.freshness = 'PENDING_NEW'; // Đúng logic FreshnessTests của TV1: phục hồi nhưng chờ mẫu mới
+        s.alertLevel = 'N/A';
+        s.alertMessage = 'Đã khôi phục kết nối — đang chờ dữ liệu mới ở bước kế tiếp';
+        this.showToast(`Đã khôi phục ${s.sensorId} (Khu ${zoneId}) sang trạng thái chờ dữ liệu mới.`, 'success');
+        this.renderAll();
+      }
+
+      toggleAcFailure(zoneId) {
+        const current = this.simulator.faultActive[zoneId];
+        this.simulator.faultActive[zoneId] = !current;
+        const s = this.sensors[zoneId];
+        if (!current) {
+          this.showToast(`Đã tiêm sự cố hỏng điều hòa tại ${s.name}! Nhiệt độ sẽ tăng dần.`, 'warning');
+        } else {
+          this.showToast(`Đã tắt sự cố điều hòa tại ${s.name}. Hệ thống bắt đầu hồi quy.`, 'info');
+        }
+        this.renderCards();
+      }
+
+      queueFaultInjection(zoneId, faultType) {
+        this.simulator.pendingInject[zoneId] = faultType;
+        const label = faultType === 'DISCONNECT' ? 'Mất kết nối (None)' : 'Nhiễu phần cứng (-999°C)';
+        this.showToast(`Đã xếp lịch giả lập "${label}" cho Khu ${zoneId} ở bước tiếp theo.`, 'info');
+        this.renderCards();
+      }
+
+      resetSystem() {
+        this.stopAuto();
+        this.step = 0;
+        const inputVal = document.getElementById('mssvInput').value.trim();
+        this.mssv = inputVal || '21520001';
+        document.getElementById('mssvInput').value = this.mssv;
+
+        this.simulator.resetAll(this.mssv);
+        this.logs = [];
+        this.stats.errors = { DISCONNECT: 0, INVALID_DATA: 0 };
+        this.chartHistory.labels = [];
+
+        Object.keys(this.sensors).forEach((zId) => {
+          const s = this.sensors[zId];
+          s.status = 'ACTIVE';
+          s.freshness = 'FRESH';
+          s.lastTemp = null;
+          s.lastHumidity = null;
+          s.alertLevel = 'NORMAL';
+          s.alertMessage = 'Sẵn sàng thu thập dữ liệu';
+          this.stats.byZone[zId] = { WARNING: 0, CRITICAL: 0 };
+          this.chartHistory.temp[zId] = [];
+          this.chartHistory.humidity[zId] = [];
+        });
+
+        this.renderAll();
+        this.showToast(`Đã khởi tạo lại hệ thống với Seed MSSV: ${this.mssv}`, 'success');
+      }
+
+      toggleAuto() {
+        if (this.autoInterval) {
+          this.stopAuto();
+        } else {
+          this.executeStep();
+          this.autoInterval = setInterval(() => this.executeStep(), 1400);
+          const btn = document.getElementById('toggleAutoBtn');
+          btn.classList.remove('bg-cyan-600', 'hover:bg-cyan-500');
+          btn.classList.add('bg-amber-600', 'hover:bg-amber-500');
+          document.getElementById('toggleAutoText').textContent = 'Tạm dừng';
+          document.getElementById('playIcon').innerHTML = '<path d="M5.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 007.25 3h-1.5zm7 0a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75a.75.75 0 00-.75-.75h-1.5z" />';
+        }
+      }
+
+      stopAuto() {
+        if (this.autoInterval) {
+          clearInterval(this.autoInterval);
+          this.autoInterval = null;
+        }
+        const btn = document.getElementById('toggleAutoBtn');
+        btn.classList.remove('bg-amber-600', 'hover:bg-amber-500');
+        btn.classList.add('bg-cyan-600', 'hover:bg-cyan-500');
+        document.getElementById('toggleAutoText').textContent = 'Chạy tự động';
+        document.getElementById('playIcon').innerHTML = '<path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />';
+      }
+
+      _pushLog(entry) {
+        this.logs.unshift(entry);
+        if (this.logs.length > 200) this.logs.pop();
+      }
+
+      exportCsv() {
+        if (this.logs.length === 0) {
+          this.showToast('Chưa có dữ liệu cảnh báo/lỗi để xuất CSV.', 'warning');
+          return;
+        }
+        const headers = ['step', 'timestamp', 'sensor_id', 'location', 'temperature', 'humidity', 'level', 'detail'];
+        const rows = this.logs.map((l) =>
+          [l.step, l.time, l.sensorId, l.zoneId, `"${l.temp}"`, `"${l.humidity}"`, l.level, `"${l.detail}"`].join(',')
+        );
+        const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+        this._downloadFile(csvContent, 'alert_logs.csv', 'text/csv;charset=utf-8;');
+        this.showToast('Đã xuất tệp báo cáo alert_logs.csv thành công!', 'success');
+      }
+
+      exportJson() {
+        const totalWarnings = Object.values(this.stats.byZone).reduce((acc, z) => acc + z.WARNING, 0);
+        const totalCriticals = Object.values(this.stats.byZone).reduce((acc, z) => acc + z.CRITICAL, 0);
+        const payload = {
+          metadata: {
+            project: 'ChuDe36 - IoT Microclimate Monitoring',
+            seed_mssv: this.mssv,
+            mode: this.mode,
+            total_steps: this.step,
+            exported_at: new Date().toISOString(),
+          },
+          summary: {
+            total_alerts: totalWarnings + totalCriticals,
+            warning_count: totalWarnings,
+            critical_count: totalCriticals,
+            by_location: this.stats.byZone,
+            system_errors: this.stats.errors,
+          },
+          logs: this.logs,
+        };
+        this._downloadFile(JSON.stringify(payload, null, 2), 'report.json', 'application/json');
+        this.showToast('Đã xuất tệp báo cáo report.json thành công!', 'success');
+      }
+
+      _downloadFile(content, filename, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      /* ================= RENDERING ================= */
+
+      renderAll() {
+        document.getElementById('stepBadge').textContent = this.step;
+        document.getElementById('zoneCountBadge').textContent = `${Object.keys(this.sensors).length} khu vực`;
+        this.renderCards();
+        this.renderStats();
+        this.renderLogs();
+        this.updateCharts();
+      }
+
+      renderCards() {
+        const grid = document.getElementById('sensorCardsGrid');
+        grid.innerHTML = Object.keys(this.sensors)
+          .map((zId) => {
+            const s = this.sensors[zId];
+            const isAcFault = this.simulator.faultActive[zId];
+            const pending = this.simulator.pendingInject[zId];
+
+            // Styling theo mức độ cảnh báo / trạng thái
+            let cardBorder = 'border-slate-800';
+            let badgeHtml = '<span class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">NORMAL</span>';
+
+            if (s.status === 'ERROR') {
+              cardBorder = 'border-purple-500/60';
+              badgeHtml = '<span class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">ERROR (N/A)</span>';
+            } else if (s.freshness === 'PENDING_NEW') {
+              cardBorder = 'border-cyan-500/50';
+              badgeHtml = '<span class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">CHỜ DỮ LIỆU MỚI</span>';
+            } else if (s.alertLevel === 'CRITICAL') {
+              cardBorder = 'border-rose-500 critical-card';
+              badgeHtml = '<span class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/40">CRITICAL</span>';
+            } else if (s.alertLevel === 'WARNING') {
+              cardBorder = 'border-amber-500/70';
+              badgeHtml = '<span class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">WARNING</span>';
+            }
+
+            // Hiển thị giá trị kèm hậu tố freshness đúng chuẩn TV5 Display
+            let freshnessSuffix = '';
+            if (s.freshness === 'STALE') freshnessSuffix = ' <span class="text-[11px] font-normal text-orange-400">(giá trị cũ)</span>';
+            else if (s.freshness === 'PENDING_NEW') freshnessSuffix = ' <span class="text-[11px] font-normal text-cyan-400">(chờ dữ liệu mới)</span>';
+
+            const tempDisplay = s.lastTemp !== null ? `${s.lastTemp}°C${freshnessSuffix}` : 'N/A';
+            const humDisplay = s.lastHumidity !== null ? `${s.lastHumidity}%${freshnessSuffix}` : 'N/A';
+
+            // Tính phần trăm thanh tiến trình nhiệt độ
+            const spanT = Math.max(1, s.tempMax - s.tempMin);
+            const pctT = s.lastTemp !== null ? Math.max(0, Math.min(100, ((s.lastTemp - (s.tempMin - spanT * 0.3)) / (spanT * 1.6)) * 100)) : 0;
+            const pctH = s.lastHumidity !== null ? Math.max(0, Math.min(100, s.lastHumidity)) : 0;
+
+            const tempThresholdText = s.hasTempMin ? `${s.tempMin}°C – ${s.tempMax}°C` : `< ${s.tempMax}°C`;
+            const humThresholdText = s.hasHumMin ? `${s.humMin}% – ${s.humMax}%` : `< ${s.humMax}%`;
+
+            return `
+              <div class="bg-slate-900 border ${cardBorder} rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col justify-between transition-all">
+                <div>
+                  <!-- Card Header -->
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <span class="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-200">${s.sensorId}</span>
+                        <span class="text-[11px] font-mono text-slate-400">${s.sensorType}</span>
+                      </div>
+                      <h3 class="text-sm font-bold text-white mt-1.5">${s.name}</h3>
+                    </div>
+                    <div class="flex flex-col items-end gap-1">
+                      ${badgeHtml}
+                      <span class="text-[11px] font-mono ${s.status === 'ACTIVE' ? 'text-emerald-400' : 'text-rose-400'}">
+                        ● ${s.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- Metrics -->
+                  <div class="grid grid-cols-2 gap-3 mt-4">
+                    <div class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-3">
+                      <div class="flex items-center justify-between text-[11px] text-slate-400">
+                        <span>Nhiệt độ</span>
+                        <span class="font-mono text-slate-500">${tempThresholdText}</span>
+                      </div>
+                      <div class="text-lg font-mono font-bold text-white mt-1 tabular-nums">${tempDisplay}</div>
+                      <div class="w-full h-1.5 bg-slate-800 rounded-full mt-2 overflow-hidden">
+                        <div class="h-full rounded-full transition-all duration-300 ${s.alertLevel === 'CRITICAL' ? 'bg-rose-500' : s.alertLevel === 'WARNING' ? 'bg-amber-400' : 'bg-emerald-400'}" style="width: ${pctT}%"></div>
+                      </div>
+                    </div>
+
+                    <div class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-3">
+                      <div class="flex items-center justify-between text-[11px] text-slate-400">
+                        <span>Độ ẩm</span>
+                        <span class="font-mono text-slate-500">${humThresholdText}</span>
+                      </div>
+                      <div class="text-lg font-mono font-bold text-cyan-300 mt-1 tabular-nums">${humDisplay}</div>
+                      <div class="w-full h-1.5 bg-slate-800 rounded-full mt-2 overflow-hidden">
+                        <div class="h-full bg-cyan-400 rounded-full transition-all duration-300" style="width: ${pctH}%"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Status Message -->
+                  <div class="mt-3 px-3 py-2 rounded-xl bg-slate-950/60 border border-slate-800/70 text-xs text-slate-300 flex items-center gap-2">
+                    <span class="shrink-0 text-slate-500">Trạng thái:</span>
+                    <span class="truncate" title="${s.alertMessage}">${s.alertMessage}</span>
+                  </div>
+                </div>
+
+                <!-- Fault Injection Controls (TV2 Interactive Controls) -->
+                <div class="mt-4 pt-3 border-t border-slate-800/80">
+                  <div class="text-[11px] font-medium text-slate-400 mb-2 flex items-center justify-between">
+                    <span>Tiêm sự cố &amp; Kiểm thử ngoại lệ:</span>
+                    ${pending ? `<span class="text-amber-400 font-mono text-[10px]">Chờ tiêm: ${pending}</span>` : ''}
+                  </div>
+                  <div class="grid grid-cols-2 gap-1.5 text-[11px]">
+                    <button
+                      onclick="app.toggleAcFailure('${zId}')"
+                      class="px-2.5 py-1.5 rounded-lg font-medium border transition cursor-pointer ${
+                        isAcFault
+                          ? 'bg-rose-600/25 border-rose-500 text-rose-300'
+                          : 'bg-slate-850 hover:bg-slate-800 border-slate-700/80 text-slate-300'
+                      }"
+                    >
+                      ${isAcFault ? '🔥 Đang hỏng ĐH (Tắt)' : '❄️ Hỏng điều hòa'}
+                    </button>
+
+                    <button
+                      onclick="app.queueFaultInjection('${zId}', 'DISCONNECT')"
+                      class="px-2.5 py-1.5 rounded-lg font-medium bg-slate-850 hover:bg-slate-800 border border-slate-700/80 text-orange-300 transition cursor-pointer"
+                    >
+                      🔌 Mất kết nối
+                    </button>
+
+                    <button
+                      onclick="app.queueFaultInjection('${zId}', 'INVALID_DATA')"
+                      class="px-2.5 py-1.5 rounded-lg font-medium bg-slate-850 hover:bg-slate-800 border border-slate-700/80 text-purple-300 transition cursor-pointer"
+                    >
+                      ⚡ Nhiễu (-999°C)
+                    </button>
+
+                    <button
+                      onclick="app.recoverSensor('${zId}')"
+                      class="px-2.5 py-1.5 rounded-lg font-medium bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/40 text-emerald-300 transition cursor-pointer"
+                    >
+                      🔄 Khôi phục (Recover)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+      }
+
+      renderStats() {
+        const tbody = document.getElementById('alertStatsTableBody');
+        let grandWarn = 0;
+        let grandCrit = 0;
+
+        tbody.innerHTML = Object.keys(this.stats.byZone)
+          .map((zId) => {
+            const row = this.stats.byZone[zId];
+            const total = row.WARNING + row.CRITICAL;
+            grandWarn += row.WARNING;
+            grandCrit += row.CRITICAL;
+            return `
+              <tr>
+                <td class="py-2 pr-2 font-sans font-medium text-slate-200">Khu ${zId} (${this.sensors[zId]?.sensorId || zId})</td>
+                <td class="py-2 px-2 text-center text-amber-400 font-bold">${row.WARNING}</td>
+                <td class="py-2 px-2 text-center text-rose-400 font-bold">${row.CRITICAL}</td>
+                <td class="py-2 pl-2 text-right text-white font-bold">${total}</td>
+              </tr>
+            `;
+          })
+          .join('');
+
+        document.getElementById('totalAlertsBadge').textContent = `Tổng: ${grandWarn + grandCrit}`;
+        document.getElementById('disconnectCountStat').textContent = this.stats.errors.DISCONNECT;
+        document.getElementById('invalidDataCountStat').textContent = this.stats.errors.INVALID_DATA;
+        document.getElementById('totalErrorsBadge').textContent = `Tổng lỗi: ${
+          this.stats.errors.DISCONNECT + this.stats.errors.INVALID_DATA
+        }`;
+      }
+
+      renderLogs() {
+        const tbody = document.getElementById('logsTableBody');
+        const filtered = this.logFilter === 'ALL' ? this.logs : this.logs.filter((l) => l.level === this.logFilter);
+
+        if (filtered.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="8" class="py-8 text-center text-slate-500">
+                Không có bản ghi nào khớp với bộ lọc "${this.logFilter}".
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        tbody.innerHTML = filtered
+          .map((l) => {
+            let badgeClass = 'bg-slate-800 text-slate-300';
+            if (l.level === 'WARNING') badgeClass = 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
+            else if (l.level === 'CRITICAL') badgeClass = 'bg-rose-500/20 text-rose-400 border border-rose-500/40';
+            else if (l.level === 'ERROR') badgeClass = 'bg-purple-500/20 text-purple-300 border border-purple-500/40';
+
+            return `
+              <tr class="hover:bg-slate-850/60 transition">
+                <td class="py-2 px-3 font-mono text-slate-400">#${l.step}</td>
+                <td class="py-2 px-3 font-mono text-slate-400">${l.time}</td>
+                <td class="py-2 px-3 font-mono font-semibold text-slate-200">${l.sensorId}</td>
+                <td class="py-2 px-3 font-mono text-slate-300">Khu ${l.zoneId}</td>
+                <td class="py-2 px-3 font-mono text-slate-200">${l.temp}</td>
+                <td class="py-2 px-3 font-mono text-cyan-300">${l.humidity}</td>
+                <td class="py-2 px-3">
+                  <span class="px-2 py-0.5 text-[10px] font-bold rounded-full ${badgeClass}">${l.level}</span>
+                </td>
+                <td class="py-2 px-3 text-slate-300">${l.detail}</td>
+              </tr>
+            `;
+          })
+          .join('');
+      }
+
+      /* ================= CHARTS (Chart.js) ================= */
+
+      _initCharts() {
+        const commonOptions = {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 250 },
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              labels: { color: '#cbd5e1', font: { family: 'Inter', size: 11 }, boxWidth: 12 },
+            },
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(51, 65, 85, 0.35)' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 } },
+            },
+            y: {
+              grid: { color: 'rgba(51, 65, 85, 0.35)' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 } },
+            },
+          },
+        };
+
+        this.tempChart = new Chart(document.getElementById('tempChart'), {
+          type: 'line',
+          data: { labels: [], datasets: [] },
+          options: commonOptions,
+        });
+
+        this.humidityChart = new Chart(document.getElementById('humidityChart'), {
+          type: 'line',
+          data: { labels: [], datasets: [] },
+          options: commonOptions,
+        });
+
+        this._rebuildChartDatasets();
+      }
+
+      _rebuildChartDatasets() {
+        const zoneIds =
+          this.chartZoneFilter === 'ALL' ? Object.keys(this.sensors) : [this.chartZoneFilter].filter((z) => this.sensors[z]);
+
+        const tempDatasets = zoneIds.map((zId) => {
+          const s = this.sensors[zId];
+          return {
+            label: `${s.sensorId} (Khu ${zId})`,
+            data: this.chartHistory.temp[zId] || [],
+            borderColor: s.color,
+            backgroundColor: s.color + '22',
+            borderWidth: 2,
+            tension: 0.35,
+            pointRadius: 2.5,
+          };
+        });
+
+        // Thêm đường nét đứt ngưỡng tối đa nếu lọc 1 khu vực cụ thể
+        if (zoneIds.length === 1) {
+          const s = this.sensors[zoneIds[0]];
+          tempDatasets.push({
+            label: `Ngưỡng Max (${s.tempMax}°C)`,
+            data: this.chartHistory.labels.map(() => s.tempMax),
+            borderColor: '#ef4444',
+            borderWidth: 1.5,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            fill: false,
+          });
+        }
+
+        const humDatasets = zoneIds.map((zId) => {
+          const s = this.sensors[zId];
+          return {
+            label: `${s.sensorId} (Khu ${zId})`,
+            data: this.chartHistory.humidity[zId] || [],
+            borderColor: s.color,
+            backgroundColor: s.color + '22',
+            borderWidth: 2,
+            tension: 0.35,
+            pointRadius: 2.5,
+          };
+        });
+
+        if (zoneIds.length === 1) {
+          const s = this.sensors[zoneIds[0]];
+          humDatasets.push({
+            label: `Ngưỡng Max (${s.humMax}%)`,
+            data: this.chartHistory.labels.map(() => s.humMax),
+            borderColor: '#f59e0b',
+            borderWidth: 1.5,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            fill: false,
+          });
+        }
+
+        this.tempChart.data.labels = this.chartHistory.labels;
+        this.tempChart.data.datasets = tempDatasets;
+        this.tempChart.update();
+
+        this.humidityChart.data.labels = this.chartHistory.labels;
+        this.humidityChart.data.datasets = humDatasets;
+        this.humidityChart.update();
+      }
+
+      updateCharts() {
+        this._rebuildChartDatasets();
+      }
+
+      _updateZoneFilterDropdown() {
+        const select = document.getElementById('chartZoneFilter');
+        const current = select.value;
+        select.innerHTML =
+          '<option value="ALL">Tất cả khu vực</option>' +
+          Object.keys(this.sensors)
+            .map((zId) => {
+              const s = this.sensors[zId];
+              return `<option value="${zId}">Khu ${zId} (${s.sensorId})</option>`;
+            })
+            .join('');
+        if (this.sensors[current] || current === 'ALL') select.value = current;
+      }
+
+      _updateConnIndicator() {
+        const dot = document.getElementById('connDot');
+        if (this.dataSource === 'fastapi') {
+          dot.className = 'w-2 h-2 rounded-full bg-cyan-400 animate-pulse';
+        } else {
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+        }
+      }
+
+      showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const colors = {
+          success: 'bg-slate-900 border-emerald-500/60 text-emerald-300',
+          warning: 'bg-slate-900 border-amber-500/60 text-amber-300',
+          info: 'bg-slate-900 border-cyan-500/60 text-cyan-300',
+        };
+        const toast = document.createElement('div');
+        toast.className = `pointer-events-auto border ${colors[type] || colors.info} rounded-xl px-4 py-2.5 text-xs font-medium shadow-xl transition-all duration-300`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          setTimeout(() => toast.remove(), 300);
+        }, 3200);
+      }
+
+      _bindEvents() {
+        document.getElementById('applySeedBtn').addEventListener('click', () => this.resetSystem());
+        document.getElementById('nextStepBtn').addEventListener('click', () => this.executeStep());
+        document.getElementById('toggleAutoBtn').addEventListener('click', () => this.toggleAuto());
+        document.getElementById('exportCsvBtn').addEventListener('click', () => this.exportCsv());
+        document.getElementById('exportJsonBtn').addEventListener('click', () => this.exportJson());
+
+        // Mode buttons
+        const modeRandomBtn = document.getElementById('modeRandomBtn');
+        const modeDemoBtn = document.getElementById('modeDemoBtn');
+        modeRandomBtn.addEventListener('click', () => {
+          this.mode = 'random';
+          modeRandomBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-600 text-white shadow transition cursor-pointer';
+          modeDemoBtn.className = 'px-3 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition cursor-pointer';
+          this.showToast('Đã chuyển sang chế độ Ngẫu nhiên (Ornstein-Uhlenbeck Random Walk).', 'info');
+        });
+        modeDemoBtn.addEventListener('click', () => {
+          this.mode = 'demo';
+          modeDemoBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-600 text-white shadow transition cursor-pointer';
+          modeRandomBtn.className = 'px-3 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition cursor-pointer';
+          this.resetSystem();
+          this.showToast('Đã chuyển sang Kịch bản mẫu (Demo Mode). Nhấn "+1 Step" để xem các mốc cảnh báo.', 'info');
+        });
+
+        // Data source selector
+        document.getElementById('dataSourceSelect').addEventListener('change', (e) => {
+          this.dataSource = e.target.value;
+          this._updateConnIndicator();
+        });
+
+        // Chart zone filter
+        document.getElementById('chartZoneFilter').addEventListener('change', (e) => {
+          this.chartZoneFilter = e.target.value;
+          this.updateCharts();
+        });
+
+        // Log filter buttons
+        document.querySelectorAll('.log-filter-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.log-filter-btn').forEach((b) => b.classList.remove('bg-slate-800', 'text-white'));
+            btn.classList.add('bg-slate-800', 'text-white');
+            this.logFilter = btn.dataset.logFilter;
+            this.renderLogs();
+          });
+        });
+
+        // Add Dynamic Zone Modal
+        const modal = document.getElementById('addZoneModal');
+        const openModal = () => {
+          modal.classList.remove('hidden');
+          modal.classList.add('flex');
+        };
+        const closeModal = () => {
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+        };
+        document.getElementById('openAddZoneModalBtn').addEventListener('click', openModal);
+        document.getElementById('closeAddZoneModalBtn').addEventListener('click', closeModal);
+        document.getElementById('cancelAddZoneBtn').addEventListener('click', closeModal);
+
+        document.getElementById('addZoneForm').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const zId = document.getElementById('newZoneId').value.trim().toUpperCase();
+          const sId = document.getElementById('newSensorId').value.trim().toUpperCase();
+          const zName = document.getElementById('newZoneName').value.trim();
+          const tMin = parseFloat(document.getElementById('newTempMin').value);
+          const tMax = parseFloat(document.getElementById('newTempMax').value);
+          const hMin = parseFloat(document.getElementById('newHumMin').value);
+          const hMax = parseFloat(document.getElementById('newHumMax').value);
+
+          if (this.sensors[zId]) {
+            this.showToast(`Khu vực "${zId}" đã tồn tại! Hãy nhập mã khác.`, 'warning');
+            return;
+          }
+          if (tMin >= tMax || hMin >= hMax) {
+            this.showToast('Giá trị Min phải nhỏ hơn Max!', 'warning');
+            return;
+          }
+
+          const palette = ['#f472b6', '#34d399', '#60a5fa', '#fb923c'];
+          const color = palette[Object.keys(this.sensors).length % palette.length];
+
+          this.addSensorZone(
+            {
+              zoneId: zId,
+              sensorId: sId,
+              sensorType: 'CUSTOM_ZONE',
+              name: zName,
+              tempMin: tMin,
+              tempMax: tMax,
+              hasTempMin: true,
+              humMin: hMin,
+              humMax: hMax,
+              hasHumMin: true,
+              color,
+            },
+            true
+          );
+          closeModal();
+          this.showToast(`Đã đăng ký thành công khu vực động "${zName}" (${sId})!`, 'success');
+        });
+      }
+    }
+
+    // Khởi chạy ứng dụng khi tải trang xong
+    let app;
+    window.addEventListener('DOMContentLoaded', () => {
+      app = new MonitoringDashboardApp();
+    });
+  </script>
+</body>
+</html>
