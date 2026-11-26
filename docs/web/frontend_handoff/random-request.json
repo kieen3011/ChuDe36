@@ -1,0 +1,6 @@
+{
+  "mode": "random",
+  "seed": "sample-01",
+  "step_count": 10,
+  "step_interval_seconds": 60
+}

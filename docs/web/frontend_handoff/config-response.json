@@ -1,0 +1,82 @@
+{
+  "modes": [
+    "random",
+    "demo"
+  ],
+  "defaults": {
+    "seed": "CHUDE36-DEMO",
+    "step_count": 10,
+    "step_interval_seconds": 60.0
+  },
+  "limits": {
+    "seed_length_max": 128,
+    "step_count_max": 100,
+    "step_interval_seconds_min": 0.001,
+    "step_interval_seconds_max": 3600.0,
+    "request_body_bytes": 65536
+  },
+  "sensor_definitions": [
+    {
+      "sensor_id": "COLD-01",
+      "location_id": "A",
+      "sensor_type": "COLD_STORAGE"
+    },
+    {
+      "sensor_id": "DRY-01",
+      "location_id": "B",
+      "sensor_type": "DRY_STORAGE"
+    },
+    {
+      "sensor_id": "SERVER-01",
+      "location_id": "C",
+      "sensor_type": "SERVER_ROOM"
+    }
+  ],
+  "locations": [
+    "A",
+    "B",
+    "C"
+  ],
+  "thresholds": {
+    "A": {
+      "name": "Kho lạnh trái cây",
+      "temp_min": 2.0,
+      "temp_max": 8.0,
+      "hum_min": 85.0,
+      "hum_max": 95.0,
+      "temp_critical_delta": 3.0,
+      "hum_critical_delta": 10.0
+    },
+    "B": {
+      "name": "Kho hạt khô",
+      "temp_min": 18.0,
+      "temp_max": 25.0,
+      "hum_min": null,
+      "hum_max": 60.0,
+      "hum_max_inclusive": false,
+      "temp_critical_delta": 3.0,
+      "hum_critical_delta": 10.0
+    },
+    "C": {
+      "name": "Phòng tủ điện / Máy chủ",
+      "temp_min": null,
+      "temp_max": 30.0,
+      "temp_max_inclusive": false,
+      "hum_min": 40.0,
+      "hum_max": 60.0,
+      "temp_critical_delta": 3.0,
+      "hum_critical_delta": 10.0
+    }
+  },
+  "freshness_values": [
+    "FRESH",
+    "STALE",
+    "NO_DATA",
+    "RECOVERY_PENDING"
+  ],
+  "capabilities": {
+    "custom_thresholds": false,
+    "server_export": false,
+    "openapi": true
+  }
+}

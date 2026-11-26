@@ -252,6 +252,9 @@ def run_simulation(
     for step_index in range(step_count):
         timestamp = create_step_timestamp(start_time, step_index, step_seconds)
         events = simulation_engine.generate_events(step_index, timestamp)
+        step_recorder = getattr(display, "record_step", None)
+        if step_recorder is not None:
+            error_start = len(statistics.get_errors())
         step_alerts = []
         for event in events:
             alert = process_event(
@@ -259,15 +262,26 @@ def run_simulation(
             )
             if alert is not None:
                 step_alerts.append(alert)
+        readings = manager.collect_readings()
+        if step_recorder is not None:
+            step_recorder(
+                step_index=step_index,
+                timestamp=timestamp,
+                events=events,
+                readings=readings,
+                alerts=step_alerts,
+                errors=statistics.get_errors()[error_start:],
+                cumulative_summary=statistics.get_summary(),
+            )
         snapshot_renderer = display.render_snapshot
         if "current_timestamp" in inspect.signature(snapshot_renderer).parameters:
             snapshot_renderer(
-                manager.collect_readings(), step_alerts, step_index,
+                readings, step_alerts, step_index,
                 current_timestamp=timestamp,
             )
         else:
             snapshot_renderer(
-                manager.collect_readings(), step_alerts, step_index
+                readings, step_alerts, step_index
             )
 
     summary = statistics.get_summary()
